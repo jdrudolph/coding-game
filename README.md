@@ -2,6 +2,8 @@
 
 A pixel-art time-management game about hospital case coding. You are the coding specialist on a busy ward: patients arrive, clues trickle in (admission notes, labs, X-rays, OR reports, nursing notes), and you have to code every case before the patient goes home. Then the MD auditor shows up.
 
+![Code Blue: The Ward Round](share-image.png)
+
 **Play:** open `index.html` in any modern browser. It is a single self-contained file (fonts load from Google Fonts, everything else is inline), so you can send it to friends, drop it on GitHub Pages, or host it anywhere.
 
 ## What's in it
