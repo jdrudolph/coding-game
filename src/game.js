@@ -11,12 +11,14 @@ let SCENE = null; // whatever the canvas currently draws
 
 // ---------------------------------------------------------------- save data
 const SAVE_KEY = 'codeblue.save.v1';
-function defaultSave() { return { settings: { sfx: true, music: false, tips: true, name: '', hard: false }, tipsSeen: {}, career: null, daily: {}, friends: [], quick: {}, stats: { shifts: 0, clean: 0, cases: 0 } }; }
+function defaultSave() { return { settings: { sfx: true, music: true, musicV2: true, tips: true, name: '', hard: false }, tipsSeen: {}, career: null, daily: {}, friends: [], quick: {}, stats: { shifts: 0, clean: 0, cases: 0 } }; }
 function loadSave() {
   try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.settings) { const d = defaultSave(); return Object.assign(d, s, { settings: Object.assign(d.settings, s.settings), stats: Object.assign(d.stats, s.stats || {}) }); } } catch (e) { }
   return defaultSave();
 }
 let SAVE = loadSave();
+// music became the default with the new soundtrack: switch it on once for older saves
+if (!SAVE.settings.musicV2) { SAVE.settings.music = true; SAVE.settings.musicV2 = true; }
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(SAVE)); } catch (e) { } }
 
 // ---------------------------------------------------------------- helpers
@@ -447,7 +449,8 @@ function renderGameShell() {
       <div class="tools">
         <button class="btn small ghost" id="btn-speed" title="Game speed">1x</button>
         ${G.cfg.hard ? '<span class="tag hard-tag" title="Hard mode: the clock never stops">Hard · no pause</span>' : '<button class="btn small ghost" id="btn-pause" title="Pause (Space)">Pause</button>'}
-        <button class="btn small ghost" id="btn-snd" title="Sound">${SAVE.settings.sfx ? 'Sound on' : 'Sound off'}</button>
+        <button class="btn small ghost" id="btn-snd" title="Sound effects">${SAVE.settings.sfx ? 'Sound on' : 'Sound off'}</button>
+        <button class="btn small ghost" id="btn-mus" title="Music">${SAVE.settings.music ? 'Music on' : 'Music off'}</button>
         <button class="btn small ghost" id="btn-quit" title="Leave shift">Menu</button>
       </div>
   <div class="pause-banner" id="pause-banner" hidden><b>Paused</b><span>The clock is stopped. Read charts and browse codes freely; coding, asking, chasing and coffee wait until you resume.</span><button class="btn small" id="pb-resume">Resume</button><button class="btn small ghost" id="pb-help">How to play</button></div>
@@ -475,6 +478,7 @@ function renderGameShell() {
   $('#pb-help').onclick = () => showHelpModal();
   $('#btn-speed').onclick = () => { G.speed = G.speed === 1 ? 2 : 1; $('#btn-speed').textContent = G.speed + 'x'; Audio8.play('click'); };
   if ($('#btn-pause')) $('#btn-pause').onclick = () => togglePause();
+  $('#btn-mus').onclick = () => { SAVE.settings.music = !SAVE.settings.music; Audio8.setMusic(SAVE.settings.music); persist(); $('#btn-mus').textContent = SAVE.settings.music ? 'Music on' : 'Music off'; };
   $('#btn-snd').onclick = () => { SAVE.settings.sfx = !SAVE.settings.sfx; Audio8.setSfx(SAVE.settings.sfx); persist(); $('#btn-snd').textContent = SAVE.settings.sfx ? 'Sound on' : 'Sound off'; };
   $('#btn-quit').onclick = () => confirmQuit();
   $('#board').addEventListener('pointerdown', e => { const b = e.target.closest('[data-pid]'); if (b) { selectPatient(+b.dataset.pid); Audio8.play('click'); } });

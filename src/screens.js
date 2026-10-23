@@ -503,7 +503,9 @@ function showHelpModal() {
 function boot() {
   buildIcons();
   Audio8.setSfx(SAVE.settings.sfx);
-  if (SAVE.settings.music) { const once = () => { Audio8.setMusic(true); document.removeEventListener('pointerdown', once); }; document.addEventListener('pointerdown', once); }
+  // browsers only allow audio after the first click or key press
+  const once = () => { document.removeEventListener('pointerdown', once); document.removeEventListener('keydown', once); if (SAVE.settings.music && !Audio8.music) Audio8.setMusic(true); };
+  document.addEventListener('pointerdown', once); document.addEventListener('keydown', once);
   showTitle();
   requestAnimationFrame(frame);
 }
