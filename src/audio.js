@@ -9,7 +9,7 @@ const Audio8 = (() => {
       ac = new (window.AudioContext || window.webkitAudioContext)();
       master = ac.createGain(); master.gain.value = 0.6; master.connect(ac.destination);
       sfxGain = ac.createGain(); sfxGain.gain.value = 0.5; sfxGain.connect(master);
-      musicGain = ac.createGain(); musicGain.gain.value = 0.7; musicGain.connect(master);
+      musicGain = ac.createGain(); musicGain.gain.value = 0.35; musicGain.connect(master);
     } catch (e) { ac = null; }
   }
   function tone(f, dur, type = 'square', vol = 0.3, slide = 0, when = 0, dest) {
@@ -166,7 +166,7 @@ const Audio8 = (() => {
     setMusic(v) {
       musicOn = v; init(); if (!ac) return;
       if (ac.state === 'suspended') ac.resume();
-      if (v && !timer) { nextT = ac.currentTime + 0.15; bar = 0; musicGain.gain.cancelScheduledValues(ac.currentTime); musicGain.gain.setValueAtTime(0.7, ac.currentTime); timer = setInterval(sched, 120); sched(); }
+      if (v && !timer) { nextT = ac.currentTime + 0.15; bar = 0; musicGain.gain.cancelScheduledValues(ac.currentTime); musicGain.gain.setValueAtTime(0.35, ac.currentTime); timer = setInterval(sched, 120); sched(); }
       if (!v && timer) { clearInterval(timer); timer = null; musicGain.gain.setTargetAtTime(0.0001, ac.currentTime, 0.15); }
     },
     get sfx() { return sfxOn; }, get music() { return musicOn; },
