@@ -481,3 +481,13 @@ h3, .slot h3, .boss h3, .coach h3 { font-size: 23px; }
 .perk-pick .btn b { font-size: 27px; color: #fff; }
 .perk-pick .btn span { font-family: var(--f-body); font-size: 15px; letter-spacing: 0; line-height: 1.4; color: var(--muted); }
 .menu .btn { text-align: left; }
+
+/* ---------- pause banner + hard mode */
+.pause-banner { flex: 1 0 100%; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 6px 10px; background: #3a2e08; color: #fff2b0; box-shadow: 0 0 0 2px #6a5410, 0 0 0 4px var(--edge); font-size: 14px; }
+.pause-banner[hidden] { display: none; }
+.pause-banner b { font-family: var(--f-display); font-size: 24px; color: var(--gold); letter-spacing: 0.06em; text-transform: uppercase; }
+.pause-banner span { flex: 1 1 280px; min-width: 0; }
+.game.paused .card .acts button, .game.paused .card .x, .game.paused #btn-ask, .game.paused [data-chase], .game.paused #btn-coffee { opacity: 0.4; cursor: not-allowed; }
+.game.paused .card { cursor: help; }
+.game.paused .zone .ph { color: var(--amber); }
+.hard-tag { background: #7a2838; color: #ffd0d6; }

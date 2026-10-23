@@ -11,7 +11,7 @@ let SCENE = null; // whatever the canvas currently draws
 
 // ---------------------------------------------------------------- save data
 const SAVE_KEY = 'codeblue.save.v1';
-function defaultSave() { return { settings: { sfx: true, music: false, tips: true, name: '' }, tipsSeen: {}, career: null, daily: {}, friends: [], quick: {}, stats: { shifts: 0, clean: 0, cases: 0 } }; }
+function defaultSave() { return { settings: { sfx: true, music: false, tips: true, name: '', hard: false }, tipsSeen: {}, career: null, daily: {}, friends: [], quick: {}, stats: { shifts: 0, clean: 0, cases: 0 } }; }
 function loadSave() {
   try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.settings) { const d = defaultSave(); return Object.assign(d, s, { settings: Object.assign(d.settings, s.settings), stats: Object.assign(d.stats, s.stats || {}) }); } } catch (e) { }
   return defaultSave();
@@ -154,6 +154,7 @@ function startShift(cfg) {
   const scene = makeScene(cfg.ward, ward.beds);
   const built = buildShift({ ward: cfg.ward, seed: cfg.seed, count: cfg.count, window: cfg.window || 6.4, losScale: perks.has('bedmgr') ? 1 : 1, startPatients: cfg.startPatients });
   if (perks.has('bedmgr')) built.arrivals.forEach(p => { p.dischargeT += 0.4; p.los += 0.4; });
+  cfg.tips = cfg.tips && !cfg.hard; // tips pause the clock, so hard mode has none
   G = Object.assign(scene, {
     cfg, mode: cfg.mode, perks, queue: built.arrivals.slice(), waiting: [], patients: [], all: built.arrivals,
     speed: 1, paused: false, over: false, endTimer: null, sel: null,
@@ -165,7 +166,8 @@ function startShift(cfg) {
   addNurses(G, cfg.ward === 'icu' ? 2 : 2);
   SCENE = G;
   renderGameShell();
-  if (cfg.tutorial) tip('welcome');
+  if (cfg.tutorial && cfg.tips) tip('welcome');
+  if (cfg.hard) setTimeout(() => toast('<b>Hard mode:</b> no pausing, no tips. Case points +25%.', 'warn', 4000), 400);
   else if (cfg.intro) setTimeout(() => tip(cfg.intro), 300);
 }
 
@@ -198,6 +200,7 @@ function discharge(p) {
   // combo
   if (r.status === 'clean') { G.combo++; const bonus = Math.round(150 * Math.min(1, 0.25 * (G.combo - 1))); if (bonus > 0) { r.pts.push({ label: 'Combo x' + G.combo, v: bonus, cls: 'good' }); r.total += bonus; } }
   else G.combo = 0;
+  if (G.cfg.hard && r.total > 0) { const hb = Math.round(r.total * 0.25); r.pts.push({ label: 'Hard mode +25%', v: hb, cls: 'good' }); r.total += hb; }
   p.result = r; G.score += r.total;
   G.results.push(snapshotCase(p, r));
   SAVE.stats.cases++; if (r.status === 'clean') SAVE.stats.clean++;
@@ -293,8 +296,14 @@ function spend(n) {
 }
 function flashEnergy() { const e = $('.energy'); if (e) { e.animate([{ transform: 'translateX(-4px)' }, { transform: 'translateX(4px)' }, { transform: 'none' }], { duration: 200, iterations: 2 }); } }
 function locked() { return G.coffeeUntil > performance.now() || G.paused || G.over; }
+// paused: everything can be read and browsed, but nothing can be changed
+function pausedBlock() {
+  if (!G || !G.paused) return false;
+  Audio8.play('error'); toast('Paused. You can read and browse, but actions wait until you resume.', 'warn', 2200); return true;
+}
 
 function askDoctor(p) {
+  if (pausedBlock()) return;
   if (locked() || p.locked || p.ask) return;
   if (!spend(askCost())) return;
   const doc = DOCTORS[p.doctor];
@@ -348,6 +357,7 @@ function resolveAsk(p) {
   boardDirty();
 }
 function chase(p, cid) {
+  if (pausedBlock()) return;
   if (locked() || p.locked) return;
   const c = p.clues.find(x => x.id === cid); if (!c || !c.vague || c.clarified || c.chaseEnd != null) return;
   if (!spend(chaseCost())) return;
@@ -356,7 +366,8 @@ function chase(p, cid) {
   renderDocs(); boardDirty();
 }
 function coffee() {
-  if (G.over || G.paused || G.coffeeUntil > performance.now()) return;
+  if (pausedBlock()) return;
+  if (G.over || G.coffeeUntil > performance.now()) return;
   if (G.energy >= G.maxEnergy) { toast('Energy is already full.', ''); return; }
   const ms = hasPerk('espresso') ? 2000 : 5000;
   G.coffeeUntil = performance.now() + ms; G.coffees++;
@@ -383,7 +394,7 @@ function coffee() {
 // ---------------------------------------------------------------- coding ops
 function curP() { return G && G.sel != null ? G.patients.find(p => p.id === G.sel) : null; }
 function place(code, zone) {
-  const p = curP(); if (!p || p.locked || locked()) return;
+  const p = curP(); if (!p || p.locked || pausedBlock() || locked()) return;
   const c = CODES[code]; if (!c) return;
   const before = group(p.coding);
   const cd = p.coding;
@@ -404,7 +415,7 @@ function place(code, zone) {
   if (zone === 'pdx') tipLater('drg'); else if (zone === 'sdx') tipLater('pccl');
 }
 function unplace(code) {
-  const p = curP(); if (!p || p.locked || locked()) return;
+  const p = curP(); if (!p || p.locked || pausedBlock() || locked()) return;
   const before = group(p.coding); const cd = p.coding;
   if (cd.pdx === code) cd.pdx = null; cd.sdx = cd.sdx.filter(x => x !== code); cd.procs = cd.procs.filter(x => x !== code);
   Audio8.play('remove'); afterCodingChange(p, before);
@@ -435,10 +446,12 @@ function renderGameShell() {
       <div class="score" id="hud-score"></div>
       <div class="tools">
         <button class="btn small ghost" id="btn-speed" title="Game speed">1x</button>
-        <button class="btn small ghost" id="btn-pause" title="Pause (Space)">Pause</button>
+        ${G.cfg.hard ? '<span class="tag hard-tag" title="Hard mode: the clock never stops">Hard · no pause</span>' : '<button class="btn small ghost" id="btn-pause" title="Pause (Space)">Pause</button>'}
         <button class="btn small ghost" id="btn-snd" title="Sound">${SAVE.settings.sfx ? 'Sound on' : 'Sound off'}</button>
         <button class="btn small ghost" id="btn-quit" title="Leave shift">Menu</button>
       </div>
+  <div class="pause-banner" id="pause-banner" hidden><b>Paused</b><span>The clock is stopped. Read charts and browse codes freely; coding, asking, chasing and coffee wait until you resume.</span><button class="btn small" id="pb-resume">Resume</button><button class="btn small ghost" id="pb-help">How to play</button></div>
+
     </header>
     <div class="play">
       <div class="left">
@@ -458,8 +471,10 @@ function renderGameShell() {
     for (const b of G.beds) if (b.p && x >= b.x - 8 && x <= b.x + b.w + 8 && y >= b.y - 16 && y <= b.y + 76) { selectPatient(b.p.id); Audio8.play('click'); return; }
   });
   $('#btn-coffee').onclick = coffee;
+  $('#pb-resume').onclick = () => togglePause(false);
+  $('#pb-help').onclick = () => showHelpModal();
   $('#btn-speed').onclick = () => { G.speed = G.speed === 1 ? 2 : 1; $('#btn-speed').textContent = G.speed + 'x'; Audio8.play('click'); };
-  $('#btn-pause').onclick = () => togglePause();
+  if ($('#btn-pause')) $('#btn-pause').onclick = () => togglePause();
   $('#btn-snd').onclick = () => { SAVE.settings.sfx = !SAVE.settings.sfx; Audio8.setSfx(SAVE.settings.sfx); persist(); $('#btn-snd').textContent = SAVE.settings.sfx ? 'Sound on' : 'Sound off'; };
   $('#btn-quit').onclick = () => confirmQuit();
   $('#board').addEventListener('pointerdown', e => { const b = e.target.closest('[data-pid]'); if (b) { selectPatient(+b.dataset.pid); Audio8.play('click'); } });
@@ -489,24 +504,24 @@ function renderTimeline() {
 
 function togglePause(force) {
   if (!G || G.over) return;
-  G.paused = force != null ? force : !G.paused;
-  const ex = $('#pause-ov'); if (ex) ex.remove();
-  if (G.paused) {
-    const ov = document.createElement('div'); ov.className = 'overlay'; ov.id = 'pause-ov';
-    ov.innerHTML = `<div class="modal frame"><h2>Paused</h2><p>Charts are hidden while the clock is stopped. No peeking.</p><div class="row"><button class="btn" id="resume">Resume</button><button class="btn ghost" id="p-help">How to play</button></div><p class="muted" style="font-size:13px">Keys: <span class="kbd">Space</span> pause · <span class="kbd">1</span>–<span class="kbd">7</span> select bed · <span class="kbd">A</span> ask doctor · <span class="kbd">C</span> coffee · <span class="kbd">Esc</span> clear filter</p></div>`;
-    document.body.appendChild(ov);
-    ov.querySelector('#resume').onclick = () => togglePause(false);
-    ov.querySelector('#p-help').onclick = () => { showHelpModal(); };
-  }
+  if (G.cfg.hard) { if (force !== false) toast('Hard mode: the clock never stops.', 'warn', 1800); return; }
+  const want = force != null ? force : !G.paused;
+  if (want && G.coffeeUntil > performance.now()) { toast('Finish your coffee first.', '', 1500); return; }
+  G.paused = want;
+  const game = $('.game'); if (game) game.classList.toggle('paused', G.paused);
+  const pb = $('#pause-banner'); if (pb) pb.hidden = !G.paused;
+  G.armed = null; DRAG = null;
   $('#btn-pause') && ($('#btn-pause').textContent = G.paused ? 'Resume' : 'Pause');
+  renderCoding(); renderTray();
+  Audio8.play('click');
 }
 function confirmQuit() {
-  const was = G.paused; G.paused = true;
+  const was = G.paused; if (!G.cfg.hard) G.paused = true;
   const ov = document.createElement('div'); ov.className = 'overlay';
   ov.innerHTML = `<div class="modal frame"><h2>Leave this shift?</h2><p>${G.mode === 'career' ? 'Your career progress stays where it was before this shift. This shift will not count.' : 'This shift will not be scored.'}</p><div class="row"><button class="btn red" id="q-yes">Leave shift</button><button class="btn ghost" id="q-no">Keep coding</button></div></div>`;
   document.body.appendChild(ov);
-  ov.querySelector('#q-yes').onclick = () => { ov.remove(); const pv = $('#pause-ov'); pv && pv.remove(); G = null; showTitle(); };
-  ov.querySelector('#q-no').onclick = () => { ov.remove(); G.paused = was; };
+  ov.querySelector('#q-yes').onclick = () => { ov.remove(); G = null; showTitle(); };
+  ov.querySelector('#q-no').onclick = () => { ov.remove(); if (G) G.paused = was; };
 }
 
 function renderHUD() {
@@ -729,7 +744,7 @@ document.addEventListener('pointerup', e => {
     // click: focus the card's explanation and arm it for tap-to-place
     if (!G) return;
     G.focusCode = d.code;
-    if (!d.from) G.armed = G.armed === d.code ? null : d.code;
+    if (!d.from && !G.paused) G.armed = G.armed === d.code ? null : d.code;
     renderTray(); renderCoding(); return;
   }
   d.ghost.remove();
@@ -743,13 +758,13 @@ document.addEventListener('pointercancel', () => { if (DRAG && DRAG.ghost) DRAG.
 document.addEventListener('keydown', e => {
   if (!G || G.over || e.target.matches('input, textarea')) return;
   if (e.code === 'Space') { e.preventDefault(); if (!G.coach) togglePause(); }
-  else if (G.paused || G.coach) return;
+  else if (G.coach) return;
   else if (/^Digit[1-9]$/.test(e.code)) { const b = G.beds[+e.code.slice(5) - 1]; if (b && b.p) selectPatient(b.p.id); }
   else if (e.key === 'c' || e.key === 'C') coffee();
   else if (e.key === 'a' || e.key === 'A') { const p = curP(); if (p) askDoctor(p); }
   else if (e.key === 'Escape') { G.filter = null; G.armed = null; renderTray(); renderCoding(); renderChartFilterBtn(); }
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden && G && !G.over && !G.paused && !G.coach) togglePause(true); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && G && !G.over && !G.paused && !G.coach && !G.cfg.hard) togglePause(true); });
 
 // ============================================================================
 // CASE RESULT VIEW
@@ -794,7 +809,7 @@ const TIPS = {
 };
 function tipLater(id) { if (!G || !G.cfg.tips) return; if (!SAVE.settings.tips || SAVE.tipsSeen[id]) return; if (G.coach) { if (!G.coachQueue.includes(id) && G.coach !== id) G.coachQueue.push(id); return; } setTimeout(() => tip(id), 250); }
 function tip(id) {
-  if (!G || G.over || !SAVE.settings.tips || SAVE.tipsSeen[id] || !TIPS[id]) return;
+  if (!G || G.over || !G.cfg.tips || !SAVE.settings.tips || SAVE.tipsSeen[id] || !TIPS[id]) return;
   if (G.coach) { if (!G.coachQueue.includes(id)) G.coachQueue.push(id); return; }
   SAVE.tipsSeen[id] = true; persist();
   G.coach = id;
@@ -831,12 +846,14 @@ function frame(ts) {
       if (!G) { requestAnimationFrame(frame); return; }
       stepActors(G, dt * G.speed);
     }
-    if (cv) { const ctx = cv.getContext('2d'); renderScene(ctx, G); }
+    if (cv) {
+      const ctx = cv.getContext('2d'); renderScene(ctx, G);
+      if (G.paused) { ctx.fillStyle = 'rgba(12,16,32,0.35)'; ctx.fillRect(0, 0, VW, VH); ptextOutlined(ctx, 'PAUSED', VW / 2, 92, '#ffd84a', '#0c1020', 3, 'center'); }
+    }
     if (G && !G.over) {
       updateHUDTick();
       if (boardIsDirty || G.real - G.lastBoard > 0.5) { G.lastBoard = G.real; boardIsDirty = false; renderBoard(); renderTimeline(); }
       const btn = $('#btn-coffee'); if (btn) btn.disabled = G.coffeeUntil > performance.now();
-      const play = $('.play'); if (play) play.style.filter = G.paused ? 'blur(6px)' : '';
     }
   } else if (AUDIT) { bossTick();
   } else if (SCENE && cv) {

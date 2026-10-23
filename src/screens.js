@@ -29,8 +29,8 @@ function showTitle() {
       <canvas class="ecg" id="ecg" width="240" height="20" aria-hidden="true"></canvas>
       <p class="muted" style="margin:0">You are the coding specialist on a busy hospital ward. Read the clues, code each case before the patient goes home, and survive the weekly MD audit.</p>
       <div class="menu">
-        ${c ? `<button class="btn big" id="m-cont"><span>Continue career</span><span class="sub">Week ${c.week} · ${WARDS[weekWard(c.week)].name}</span></button>` : ''}
-        <button class="btn ${c ? 'ghost' : 'big'}" id="m-new"><span>${c ? 'New career' : 'Start career'}</span><span class="sub">Tutorial on your first shift</span></button>
+        ${c ? `<button class="btn big" id="m-cont"><span>Continue career</span><span class="sub">Week ${c.week} · ${WARDS[weekWard(c.week)].name}${c.hard ? ' · Hard' : ''}</span></button>` : ''}
+        <button class="btn ${c ? 'ghost' : 'big'}" id="m-new"><span>${c ? 'New career' : 'Start career'}</span><span class="sub" id="new-sub">${SAVE.settings.hard ? 'Hard mode · no pause, no tutorial' : 'Tutorial on your first shift'}</span></button>
         <button class="btn violet" id="m-daily"><span>Daily challenge</span><span class="sub">${todayStr()} · ${WARDS[dailyWard(todayStr())].name}</span></button>
         <button class="btn ghost" id="m-quick"><span>Quick shift</span><span class="sub">Any ward you have unlocked</span></button>
         <button class="btn ghost" id="m-help"><span>How to play & codebook</span><span class="sub">The coding rules in 2 minutes</span></button>
@@ -39,6 +39,7 @@ function showTitle() {
         <button class="toggle" id="t-sfx" aria-pressed="${SAVE.settings.sfx}"><span class="dot"></span>Sound</button>
         <button class="toggle" id="t-music" aria-pressed="${SAVE.settings.music}"><span class="dot"></span>Music</button>
         <button class="toggle" id="t-tips" aria-pressed="${SAVE.settings.tips}"><span class="dot"></span>Tips</button>
+        <button class="toggle" id="t-hard" aria-pressed="${SAVE.settings.hard}" title="No pausing and no tips. Case points +25%."><span class="dot"></span>Hard mode</button>
       </div>
       <div class="title-foot">Codes follow ICD-10-GM and OPS; DRG names, splits and weights are simplified for play. Not a coding reference.</div>
     </div></div>`;
@@ -60,6 +61,7 @@ function showTitle() {
   $('#m-help').onclick = go(showHelp);
   const tg = (id, key, fn) => { $(id).onclick = () => { SAVE.settings[key] = !SAVE.settings[key]; persist(); $(id).setAttribute('aria-pressed', SAVE.settings[key]); fn && fn(SAVE.settings[key]); Audio8.play('click'); }; };
   tg('#t-sfx', 'sfx', v => Audio8.setSfx(v)); tg('#t-music', 'music', v => Audio8.setMusic(v)); tg('#t-tips', 'tips', v => { if (v) SAVE.tipsSeen = {}; persist(); });
+  tg('#t-hard', 'hard', v => { $('#new-sub').textContent = v ? 'Hard mode · no pause, no tutorial' : 'Tutorial on your first shift'; });
 }
 function confirmNewCareer() {
   const ov = document.createElement('div'); ov.className = 'overlay';
@@ -69,7 +71,7 @@ function confirmNewCareer() {
   ov.querySelector('#n').onclick = () => ov.remove();
 }
 function newCareer() {
-  SAVE.career = { week: 1, shift: 0, phase: 'shifts', weekCases: [], weekScore: 0, total: 0, perks: [], history: [], quota: 3, seed: Math.random().toString(36).slice(2, 8), stars: {}, lastAudit: null };
+  SAVE.career = { week: 1, shift: 0, phase: 'shifts', weekCases: [], weekScore: 0, total: 0, perks: [], history: [], quota: 3, seed: Math.random().toString(36).slice(2, 8), stars: {}, lastAudit: null, hard: !!SAVE.settings.hard };
   persist();
 }
 
@@ -88,7 +90,7 @@ function showHub() {
   const wards = WARD_ORDER.map(id => { const W = WARDS[id]; const open = c.week >= W.week; return `<div class="ward-item ${open ? '' : 'locked'}"><i class="sw" style="background:${W.color}"></i><div><b>${W.name}</b><p>${open ? esc(W.theme) : 'Unlocks in week ' + W.week}</p></div><span class="muted">${id === wid ? 'This week' : open ? 'Open' : ''}</span></div>`; }).join('');
   const perks = c.perks.length ? c.perks.map(k => `<div class="perk"><img class="icon lg" src="${ICONS[PERKS[k].icon]}" alt=""><div><b>${PERKS[k].name}</b><span>${PERKS[k].desc}</span></div></div>`).join('') : '<p class="muted" style="margin:0">Survive your first MD audit to choose a perk.</p>';
   root.innerHTML = `<div class="screen"><div class="hub">
-    <div class="hub-head"><div><div class="eyebrow">Career · Week ${c.week}</div><h1>${esc(w.name)} <span class="muted" style="font-size:20px">${esc(w.station)}</span></h1><p class="muted" style="margin:4px 0 0">${esc(w.theme)}</p></div>
+    <div class="hub-head"><div><div class="eyebrow">Career · Week ${c.week}${c.hard ? ' · <span style="color:var(--red)">Hard mode</span>' : ''}</div><h1>${esc(w.name)} <span class="muted" style="font-size:20px">${esc(w.station)}</span></h1><p class="muted" style="margin:4px 0 0">${esc(w.theme)}</p></div>
       <div class="big-score"><small>CAREER SCORE</small>${c.total.toLocaleString('en-US')}</div></div>
     <div class="week-track">${slots}</div>
     <div class="row">${c.phase === 'audit' ? `<button class="btn big red" id="h-go">Face the MD audit</button>` : `<button class="btn big" id="h-go">Start shift ${c.shift + 1}</button>`}<button class="btn ghost" id="h-menu">Main menu</button><span class="muted">This week: <b class="num" style="color:var(--text)">${c.weekScore.toLocaleString('en-US')}</b> pts</span></div>
@@ -104,7 +106,7 @@ function startCareerShift() {
   const extra = Math.max(0, c.week - 6);
   startShift({
     mode: 'career', ward: wid, seed: c.seed + '-w' + c.week + '-s' + c.shift, count: SHIFT_COUNTS[wid][c.shift] + extra,
-    tutorial: c.week === 1 && c.shift === 0, tips: true, perks: c.perks, label: 'Week ' + c.week + ' · Shift ' + (c.shift + 1),
+    tutorial: c.week === 1 && c.shift === 0, tips: true, hard: !!c.hard, perks: c.perks, label: 'Week ' + c.week + ' · Shift ' + (c.shift + 1) + (c.hard ? ' · Hard' : ''),
     startPatients: c.week === 1 && c.shift === 0 ? 1 : 2,
   });
 }
@@ -375,17 +377,23 @@ function showPerkPick(note) {
 }
 
 // ---------------------------------------------------------------- quick play
+function hardToggleHTML() { return `<button class="toggle" id="t-hard" aria-pressed="${SAVE.settings.hard}" title="No pausing and no tips. Case points +25%."><span class="dot"></span>Hard mode</button>`; }
+function wireHardToggle() {
+  const b = $('#t-hard'); if (!b) return;
+  b.onclick = () => { SAVE.settings.hard = !SAVE.settings.hard; persist(); b.setAttribute('aria-pressed', SAVE.settings.hard); Audio8.play('click'); };
+}
 function showQuick() {
   const mw = maxUnlockedWeek();
   root.innerHTML = `<div class="screen"><div class="hub">
-    <div class="hub-head"><div><div class="eyebrow">Quick shift</div><h1>Pick a ward</h1><p class="muted" style="margin:4px 0 0">One shift and an optional mini audit. Wards unlock as your career progresses.</p></div><button class="btn ghost" id="q-back">Back</button></div>
+    <div class="hub-head"><div><div class="eyebrow">Quick shift</div><h1>Pick a ward</h1><p class="muted" style="margin:4px 0 0">One shift and an optional mini audit. Wards unlock as your career progresses.</p></div><div class="row">${hardToggleHTML()}<button class="btn ghost" id="q-back">Back</button></div></div>
     <div class="ward-list">${WARD_ORDER.map(id => { const W = WARDS[id]; const open = mw >= W.week; return `<div class="ward-item ${open ? '' : 'locked'}"><i class="sw" style="background:${W.color}"></i><div><b>${W.name}</b><p>${open ? esc(W.theme) : 'Reach week ' + W.week + ' in your career'}</p></div>${open ? `<button class="btn small" data-w="${id}">Play${SAVE.quick[id] ? ' · best ' + SAVE.quick[id].toLocaleString('en-US') : ''}</button>` : ''}</div>`; }).join('')}</div>
   </div></div>`;
   $('#q-back').onclick = () => showTitle();
+  wireHardToggle();
   document.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { Audio8.play('click'); startQuick(b.dataset.w); });
 }
 function startQuick(wid) {
-  startShift({ mode: 'quick', ward: wid, seed: 'quick-' + Math.random().toString(36).slice(2), count: SHIFT_COUNTS[wid][1], tips: true, perks: [], label: 'Quick shift' });
+  startShift({ mode: 'quick', ward: wid, seed: 'quick-' + Math.random().toString(36).slice(2), count: SHIFT_COUNTS[wid][1], tips: true, hard: !!SAVE.settings.hard, perks: [], label: 'Quick shift' + (SAVE.settings.hard ? ' · Hard' : '') });
 }
 
 // ---------------------------------------------------------------- daily
@@ -401,14 +409,15 @@ const SQ = { clean: '🟩', drg: '🟦', under: '🟨', risk: '🟥', lost: '⬛
 function showDaily() {
   const date = todayStr(); const wid = dailyWard(date); const mine = SAVE.daily[date];
   root.innerHTML = `<div class="screen"><div class="daily">
-    <div class="hub-head"><div><div class="eyebrow" style="color:var(--violet)">Daily challenge · ${date}</div><h1>${WARDS[wid].name}</h1><p class="muted" style="margin:4px 0 0">Same patients, same clues, same timing for everyone today. One shift plus a 2-case audit. No perks.</p></div><button class="btn ghost" id="d-back">Back</button></div>
+    <div class="hub-head"><div><div class="eyebrow" style="color:var(--violet)">Daily challenge · ${date}</div><h1>${WARDS[wid].name}</h1><p class="muted" style="margin:4px 0 0">Same patients, same clues, same timing for everyone today. One shift plus a 2-case audit. No perks.</p></div><div class="row">${hardToggleHTML()}<button class="btn ghost" id="d-back">Back</button></div></div>
     <div class="panel frame"><h2>Your name on the board</h2><div class="row"><input class="name" id="d-name" maxlength="16" placeholder="Nickname" value="${esc(SAVE.settings.name || '')}" aria-label="Nickname"><button class="btn big violet" id="d-go">${mine ? 'Play again' : 'Start today\'s shift'}</button></div>${mine ? `<p class="muted" style="margin:0">Your best today: <b style="color:var(--text)">${mine.s.toLocaleString('en-US')}</b>. Replays count if you beat it.</p>` : ''}</div>
     ${leaderboardHTML(date)}
   </div></div>`;
   $('#d-back').onclick = () => showTitle();
+  wireHardToggle();
   $('#d-go').onclick = () => {
     SAVE.settings.name = ($('#d-name').value || '').trim().slice(0, 16); persist(); Audio8.play('click');
-    startShift({ mode: 'daily', ward: wid, seed: 'daily-' + date, count: wid === 'geri' || wid === 'icu' ? 8 : 10, tips: true, perks: [], label: 'Daily ' + date, date });
+    startShift({ mode: 'daily', ward: wid, seed: 'daily-' + date, count: wid === 'geri' || wid === 'icu' ? 8 : 10, tips: true, hard: !!SAVE.settings.hard, perks: [], label: 'Daily ' + date + (SAVE.settings.hard ? ' · Hard' : ''), date });
   };
   wireLeaderboard(date);
 }
@@ -419,7 +428,7 @@ function leaderboardHTML(date) {
   rows.sort((a, b) => b.s - a.s);
   return `<div class="panel frame"><h2>Friends leaderboard · ${date}</h2>
     <p class="muted" style="margin:0;font-size:13px">No accounts, no server: friends paste their result text (with the CB1 code) here and their score appears on your board.</p>
-    ${rows.length ? `<table class="lb"><tbody>${rows.map((r, i) => `<tr class="${r.me ? 'me' : ''}"><td class="num">${i + 1}</td><td>${esc(r.n || 'Anonymous')}${r.me ? ' (you)' : ''}</td><td>${esc(r.q || '')}</td><td>${'★'.repeat(r.st || 0)}${'☆'.repeat(3 - (r.st || 0))}</td><td class="num">${r.s.toLocaleString('en-US')}</td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="margin:0">No scores yet today.</p>'}
+    ${rows.length ? `<table class="lb"><tbody>${rows.map((r, i) => `<tr class="${r.me ? 'me' : ''}"><td class="num">${i + 1}</td><td>${esc(r.n || 'Anonymous')}${r.me ? ' (you)' : ''}${r.h ? ' <span class="tag hard-tag">Hard</span>' : ''}</td><td>${esc(r.q || '')}</td><td>${'★'.repeat(r.st || 0)}${'☆'.repeat(3 - (r.st || 0))}</td><td class="num">${r.s.toLocaleString('en-US')}</td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="margin:0">No scores yet today.</p>'}
     <textarea class="paste" id="lb-paste" placeholder="Paste a friend's result here" aria-label="Paste a friend's result"></textarea>
     <div class="row"><button class="btn small" id="lb-add">Add to board</button><span class="muted" id="lb-msg" style="font-size:13px"></span></div></div>`;
 }
@@ -438,10 +447,10 @@ function finishDaily(cfg, sum, res, a) {
   AUDIT = null;
   const date = cfg.date; const final = sum.score + a.delta;
   const squares = res.map(x => SQ[x.r.status]).join('');
-  const entry = { d: date, n: SAVE.settings.name || 'Anonymous', s: final, st: sum.stars, q: squares, w: cfg.ward };
+  const entry = { d: date, n: SAVE.settings.name || 'Anonymous', s: final, st: sum.stars, q: squares, w: cfg.ward, h: cfg.hard ? 1 : 0 };
   const prev = SAVE.daily[date]; if (!prev || final > prev.s) SAVE.daily[date] = entry; persist();
   const code = shareCode(entry);
-  const text = `CODE BLUE · Daily ${date} (${WARDS[cfg.ward].name})\n${entry.n}: ${final.toLocaleString('en-US')} pts ${'★'.repeat(sum.stars)}${'☆'.repeat(3 - sum.stars)}\n${squares}\nAudit: ${a.defended}/${a.rounds} defended${a.flawless ? ' · flawless' : ''}\n${code}`;
+  const text = `CODE BLUE · Daily ${date} (${WARDS[cfg.ward].name})${cfg.hard ? ' · HARD MODE' : ''}\n${entry.n}: ${final.toLocaleString('en-US')} pts ${'★'.repeat(sum.stars)}${'☆'.repeat(3 - sum.stars)}\n${squares}\nAudit: ${a.defended}/${a.rounds} defended${a.flawless ? ' · flawless' : ''}\n${code}`;
   CASE_TABLE_DATA = res;
   root.innerHTML = `<div class="screen"><div class="daily">
     <div class="res-head"><div><div class="eyebrow" style="color:var(--violet)">Daily challenge · ${date}</div><h1>${a.failed ? 'The auditor won today' : 'Shift and audit done'}</h1>${stars(sum.stars)}</div><div class="big-score"><small>FINAL SCORE</small>${final.toLocaleString('en-US')}<small>shift ${sum.score.toLocaleString('en-US')} · audit ${a.delta >= 0 ? '+' : ''}${a.delta}</small></div></div>
@@ -471,7 +480,7 @@ const LESSONS = [
 ];
 function helpHTML() {
   return `<div class="panel frame"><h2>The coding rules</h2>${LESSONS.map((l, i) => `<div class="lesson"><span class="n">${i + 1}</span><div><b>${l[0]}</b><p>${l[1]}</p></div></div>`).join('')}</div>
-    <div class="panel frame"><h2>Controls</h2><p>Click a <b>bed</b> or patient card to open the chart. Click <b>yellow terms</b> in documents to find matching codes. <b>Drag</b> a card into a slot, or use its buttons. Drag a placed card out of its slot (or press ×) to remove it. Keys: <span class="kbd">Space</span> pause, <span class="kbd">1</span>–<span class="kbd">7</span> select bed, <span class="kbd">A</span> ask doctor, <span class="kbd">C</span> coffee.</p></div>
+    <div class="panel frame"><h2>Controls</h2><p>Click a <b>bed</b> or patient card to open the chart. Click <b>yellow terms</b> in documents to find matching codes. <b>Drag</b> a card into a slot, or use its buttons. Drag a placed card out of its slot (or press ×) to remove it. Keys: <span class="kbd">Space</span> pause, <span class="kbd">1</span>–<span class="kbd">7</span> select bed, <span class="kbd">A</span> ask doctor, <span class="kbd">C</span> coffee.</p><p>While paused you can read every chart and browse the code finder, but you cannot code, ask, chase or drink coffee until the clock runs again. <b>Hard mode</b> has no pause and no tips, and pays 25% more points per case.</p></div>
     <div class="panel frame"><h2>Scoring</h2><p>Billed case value ÷ 10 in points. <b>+150</b> for a clean case (exactly what the record supports), <b>+60</b> for the right DRG, <b>+40</b> for every DRG-relevant secondary diagnosis you catch, and a combo bonus for clean streaks. A patient who leaves without a principal diagnosis costs <b>−150</b>. Unsupported codes pay now and cost later.</p></div>`;
 }
 function codebookHTML() {
