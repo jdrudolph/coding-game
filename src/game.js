@@ -154,7 +154,7 @@ function startShift(cfg) {
   const ward = WARDS[cfg.ward];
   const perks = new Set(cfg.perks || []);
   const scene = makeScene(cfg.ward, ward.beds);
-  const built = buildShift({ ward: cfg.ward, seed: cfg.seed, count: cfg.count, window: cfg.window || 6.4, losScale: perks.has('bedmgr') ? 1 : 1, startPatients: cfg.startPatients });
+  const built = cfg.arrivals ? { arrivals: cfg.arrivals } : buildShift({ ward: cfg.ward, seed: cfg.seed, count: cfg.count, window: cfg.window || 6.4, losScale: perks.has('bedmgr') ? 1 : 1, startPatients: cfg.startPatients });
   if (perks.has('bedmgr')) built.arrivals.forEach(p => { p.dischargeT += 0.4; p.los += 0.4; });
   cfg.tips = cfg.tips && !cfg.hard; // tips pause the clock, so hard mode has none
   G = Object.assign(scene, {
@@ -178,7 +178,7 @@ function admit(p, bed) {
   p.admitT = G.t; p.dischargeT += Math.max(0, delay); p.bed = bed.n - 1; bed.p = p; p.inBed = false;
   const sf = hasPerk('speed') ? 0.75 : 1;
   for (const c of p.clues) {
-    if (c.hidden) continue;
+    if (c.hidden || c.script) continue;
     c.revealT = p.admitT + c.f * p.los * sf;
     if (c.f === 0) { c.shown = true; c.revealT = p.admitT; }
   }
@@ -842,7 +842,8 @@ function frame(ts) {
   const dt = Math.min(0.1, (ts - lastTS) / 1000); lastTS = ts;
   const cv = document.getElementById('ward') || document.getElementById('title-cv');
   if (G && !G.over) {
-    const running = !G.paused && !G.coach;
+    const running = !G.paused && !G.coach && !(G.tut && G.tut.hold);
+    if (G.tut && G.tut.hold && !G.paused) { G.real += dt; stepActors(G, dt); }
     if (running) {
       G.t += dt * G.speed / DAY_SEC * (G.cfg.tutorial ? 0.8 : 1);
       G.real += dt;
@@ -858,6 +859,7 @@ function frame(ts) {
       updateHUDTick();
       if (boardIsDirty || G.real - G.lastBoard > 0.5) { G.lastBoard = G.real; boardIsDirty = false; renderBoard(); renderTimeline(); }
       const btn = $('#btn-coffee'); if (btn) btn.disabled = G.coffeeUntil > performance.now();
+      if (G.tut) tutTick();
     }
   } else if (AUDIT) { bossTick();
   } else if (SCENE && cv) {

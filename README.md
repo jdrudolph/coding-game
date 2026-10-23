@@ -16,7 +16,8 @@ A pixel-art time-management game about hospital case coding. You are the coding 
 - **Career:** 5 wards unlock week by week (Internal Medicine, Surgery, Cardiology, Geriatrics, ICU, then the whole hospital), with a perk after each audit (Speed Reader, Doctor Whisperer, Double Espresso, …).
 - **Daily challenge:** the same seeded shift for everyone each day. Share your result as text; friends paste each other's results into the leaderboard (no server needed, the result code is checksummed).
 - **Pause** stops the clock but only lets you read and browse; coding and actions wait until you resume. **Hard mode** (toggle on the title, quick-shift and daily screens) removes pausing and tips and pays +25% points per case.
-- Tutorial tips, codebook, DRG catalogue, keyboard controls, chiptune sound effects and a lo-fi soundtrack (on by default). Progress is saved in the browser.
+- **Tutorial:** a scripted practice shift with two patients. Nurse Bea spotlights one part of the screen at a time (ward, patient cards, chart, documents, code finder, DRG box, energy, coffee, timeline, pause) and waits for you to try each mechanic: picking the principal diagnosis, adding treated secondaries, asking the doctor about a lab value, chasing a vague note, and replacing a diagnosis when a more specific one arrives. Offered automatically before a first career.
+- Contextual tips, codebook, DRG catalogue, keyboard controls, chiptune sound effects and a lo-fi soundtrack (on by default). Progress is saved in the browser.
 
 The coding logic follows the real German G-DRG approach (principal diagnosis → base DRG, OR procedures → surgical DRGs, CCL → PCCL → severity split, documentation requirements, MD audits), but DRG names, splits and relative weights are simplified for play. It is not a coding reference.
 

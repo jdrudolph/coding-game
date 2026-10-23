@@ -5,7 +5,7 @@ here = os.path.dirname(os.path.abspath(__file__))
 src = lambda f: open(os.path.join(here, 'src', f), encoding='utf-8').read()
 head = src('head.html')
 css = src('style.css')
-js = '\n'.join(src(f) for f in ['data.js', 'engine.js', 'render.js', 'audio.js', 'game.js', 'screens.js'])
+js = '\n'.join(src(f) for f in ['data.js', 'engine.js', 'render.js', 'audio.js', 'game.js', 'tutorial.js', 'screens.js'])
 body = f'{head}<style>\n{css}</style>\n<div id="root"></div>\n<script>\n"use strict";\n{js}\nboot();\n</script>\n'
 full = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'

@@ -20,6 +20,7 @@ function titleScene(wid = 'med') {
 // ---------------------------------------------------------------- title
 function showTitle() {
   G = null; AUDIT = null;
+  ['#tut-spot', '#tut-bubble'].forEach(s => { const e = $(s); if (e) e.remove(); });
   SCENE = titleScene();
   const c = SAVE.career;
   root.innerHTML = `<div class="screen title-screen">
@@ -30,7 +31,8 @@ function showTitle() {
       <p class="muted" style="margin:0">You are the coding specialist on a busy hospital ward. Read the clues, code each case before the patient goes home, and survive the weekly MD audit.</p>
       <div class="menu">
         ${c ? `<button class="btn big" id="m-cont"><span>Continue career</span><span class="sub">Week ${c.week} · ${WARDS[weekWard(c.week)].name}${c.hard ? ' · Hard' : ''}</span></button>` : ''}
-        <button class="btn ${c ? 'ghost' : 'big'}" id="m-new"><span>${c ? 'New career' : 'Start career'}</span><span class="sub" id="new-sub">${SAVE.settings.hard ? 'Hard mode · no pause, no tutorial' : 'Tutorial on your first shift'}</span></button>
+        <button class="btn ${c ? 'ghost' : 'big'}" id="m-new"><span>${c ? 'New career' : 'Start career'}</span><span class="sub" id="new-sub">${SAVE.settings.hard ? 'Hard mode · no pause, no tips' : 'Week 1 · Internal Medicine'}</span></button>
+        <button class="btn ${SAVE.tutorialDone ? 'ghost' : 'mint'}" id="m-tut"><span>Tutorial</span><span class="sub">A calm practice shift · 3 minutes</span></button>
         <button class="btn violet" id="m-daily"><span>Daily challenge</span><span class="sub">${todayStr()} · ${WARDS[dailyWard(todayStr())].name}</span></button>
         <button class="btn ghost" id="m-quick"><span>Quick shift</span><span class="sub">Any ward you have unlocked</span></button>
         <button class="btn ghost" id="m-help"><span>How to play & codebook</span><span class="sub">The coding rules in 2 minutes</span></button>
@@ -55,13 +57,21 @@ function showTitle() {
   ecgTick();
   const go = fn => () => { Audio8.init(); Audio8.play('click'); fn(); };
   if (c) $('#m-cont').onclick = go(showHub);
-  $('#m-new').onclick = go(() => { if (SAVE.career) confirmNewCareer(); else { newCareer(); showHub(); } });
+  $('#m-new').onclick = go(() => { if (SAVE.career) confirmNewCareer(); else if (!SAVE.tutorialDone) offerTutorial(); else { newCareer(); showHub(); } });
+  $('#m-tut').onclick = go(startTutorial);
   $('#m-daily').onclick = go(showDaily);
   $('#m-quick').onclick = go(showQuick);
   $('#m-help').onclick = go(showHelp);
   const tg = (id, key, fn) => { $(id).onclick = () => { SAVE.settings[key] = !SAVE.settings[key]; persist(); $(id).setAttribute('aria-pressed', SAVE.settings[key]); fn && fn(SAVE.settings[key]); Audio8.play('click'); }; };
   tg('#t-sfx', 'sfx', v => Audio8.setSfx(v)); tg('#t-music', 'music', v => Audio8.setMusic(v)); tg('#t-tips', 'tips', v => { if (v) SAVE.tipsSeen = {}; persist(); });
-  tg('#t-hard', 'hard', v => { $('#new-sub').textContent = v ? 'Hard mode · no pause, no tutorial' : 'Tutorial on your first shift'; });
+  tg('#t-hard', 'hard', v => { $('#new-sub').textContent = v ? 'Hard mode · no pause, no tips' : 'Week 1 · Internal Medicine'; });
+}
+function offerTutorial() {
+  const ov = document.createElement('div'); ov.className = 'overlay';
+  ov.innerHTML = `<div class="modal frame"><h2>First time on the ward?</h2><p>The tutorial is a calm practice shift with two patients. Nurse Bea shows you every part of the screen, one step at a time. It takes about 3 minutes.</p><div class="row"><button class="btn mint" id="ot-yes">Play the tutorial</button><button class="btn ghost" id="ot-no">Skip, start my career</button></div></div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#ot-yes').onclick = () => { ov.remove(); startTutorial(); };
+  ov.querySelector('#ot-no').onclick = () => { ov.remove(); newCareer(); showHub(); };
 }
 function confirmNewCareer() {
   const ov = document.createElement('div'); ov.className = 'overlay';
@@ -122,6 +132,7 @@ function summarize(results, score) {
   return { n, clean, lost, risk, acc, stars: st, score, billed, possible: pos };
 }
 function showShiftResults() {
+  if (G.mode === 'tutorial') { endTutorial(true); G = null; showTutorialDone(true); return; }
   const res = G.results.slice(); const sum = summarize(res, G.score); const mode = G.mode; const cfg = G.cfg; const wardName = G.ward.name;
   const pv = $('#pause-ov'); pv && pv.remove(); const co = $('#coach-ov'); co && co.remove();
   SCENE = null; const finishedG = G; G = null;
